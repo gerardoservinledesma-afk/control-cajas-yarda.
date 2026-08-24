@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="es"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Control de Cajas - Yarda</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#f4f6f8;color:#17202a;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+header{background:#111827;color:#fff;padding:14px 16px;position:sticky;top:0;z-index:4}.head{max-width:950px;margin:auto;display:flex;justify-content:space-between;align-items:center;gap:8px}h1{font-size:19px;margin:0}main{max-width:950px;margin:auto;padding:12px}
+.card{background:#fff;border:1px solid #e2e6ea;border-radius:15px;padding:15px;margin-bottom:12px;box-shadow:0 2px 8px #0001}h2{font-size:17px;margin:0 0 12px}
+label{display:block;font-size:13px;font-weight:700;margin:7px 0 5px}input{width:100%;padding:12px;border:1px solid #cfd5dc;border-radius:10px;font:inherit}
+button,.btn{border:0;border-radius:10px;padding:12px 14px;font:inherit;font-weight:800;cursor:pointer}.blue{background:#1565c0;color:white}.green{background:#16803c;color:white}.red{background:#c62828;color:white}.gray{background:#e9edf1;color:#17202a}.full{width:100%;margin-top:10px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.scan{display:flex;gap:8px}.scan input{flex:1}.small{font-size:12px;color:#6b7280;margin-top:7px}.manual-list{display:grid;gap:8px}.manual-row{display:grid;grid-template-columns:90px 1fr 1fr auto;gap:7px;align-items:center}.manual-row .code{font-weight:800;background:#f7f8fa;border:1px solid #e2e6ea;border-radius:9px;padding:11px 8px;text-align:center}@media(max-width:600px){.manual-row{grid-template-columns:1fr 1fr;}.manual-row .code{grid-column:1/-1}}
+.filters{display:flex;gap:7px;flex-wrap:wrap}.filter{flex:1;min-width:110px;background:#e9edf1}.filter.active{background:#111827;color:#fff}.search{margin:10px 0}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-bottom:9px}.stat{text-align:center;background:#f7f8fa;border:1px solid #e2e6ea;border-radius:11px;padding:9px}.stat b{display:block;font-size:20px}.stat span{font-size:11px;color:#6b7280;font-weight:700}
+.table{overflow:auto;border:1px solid #e2e6ea;border-radius:10px}table{border-collapse:collapse;width:100%;min-width:570px}th,td{padding:10px;border-bottom:1px solid #e2e6ea;text-align:left;font-size:13px}th{background:#f7f8fa}.badge{padding:5px 8px;border-radius:999px;font-weight:800;font-size:11px}.in{background:#dff5e6;color:#126b31}.out{background:#fde1e1;color:#9e1f1f}
+.empty{text-align:center;color:#6b7280;padding:18px}.err{color:#c62828;font-size:13px;margin-top:8px}.login{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:18px}.loginbox{width:100%;max-width:390px}.modal{position:fixed;inset:0;background:#0008;display:flex;align-items:center;justify-content:center;padding:18px;z-index:10}.modalbox{background:white;border-radius:15px;padding:18px;max-width:420px;width:100%}
+@media(max-width:600px){.grid{grid-template-columns:1fr}.head{align-items:flex-start}.stats b{font-size:18px}}
+@media print{header,.filters,.search,.stats,.no-print{display:none!important}body{background:white}main{max-width:none;padding:0}.card{border:0;box-shadow:none}}
+</style></head><body>
+
+<section id="login" class="login"><div class="card loginbox">
+<h1>📦 Control de Cajas</h1><p style="color:#6b7280">Acceso al sistema de yarda</p>
+<label>Usuario</label><input id="lu" autocomplete="username">
+<label>Contraseña</label><input id="lp" type="password" autocomplete="current-password">
+<button class="blue full" onclick="login()">Iniciar sesión</button><div id="le" class="err"></div>
+</div></section>
+
+<div id="app" style="display:none"><header><div class="head"><h1>📦 Control de Cajas</h1><span>Usuario: <b>Mone12</b> · <button onclick="logout()" style="background:none;color:white;padding:0">Salir</button></span></div></header>
+<main>
+<section class="card"><h2>📥 Entrada a yarda</h2>
+<div class="scan"><input id="ec" inputmode="numeric" maxlength="5" placeholder="Código 00001–00100"><button class="gray" onclick="scan('ec')">📷 Escanear</button></div>
+<div class="grid"><div><label>Número económico</label><input id="ee" placeholder="Número económico"></div><div><label>Placas</label><input id="ep" placeholder="Placas"></div></div>
+<button class="green full" onclick="entrada()">Registrar entrada</button><div class="small">Los datos se guardan únicamente en este dispositivo.</div></section>
+
+<section class="card"><h2>📤 Salida de yarda</h2>
+<div class="scan"><input id="xc" inputmode="numeric" maxlength="5" placeholder="Código 00001–00100"><button class="gray" onclick="scan('xc')">📷 Escanear</button></div>
+<button class="red full" onclick="buscarSalida()">Buscar caja</button></section>
+
+<section class="card"><h2>📋 Inventario de yarda</h2>
+<div class="stats"><div class="stat"><b id="cin">0</b><span>🟢 En yarda</span></div><div class="stat"><b id="cout">0</b><span>🔴 Salieron</span></div><div class="stat"><b id="ct">0</b><span>📦 Total</span></div></div>
+<input id="q" class="search" placeholder="🔎 Buscar código, económico o placas">
+<div class="filters"><button class="filter active" onclick="setF('in',this)">🟢 EN YARDA</button><button class="filter" onclick="setF('out',this)">🔴 SALIERON</button><button class="filter" onclick="setF('all',this)">📋 TODAS</button></div>
+<div id="inv" style="margin-top:10px"></div><button class="gray full no-print" onclick="printInv()">🖨️ Imprimir inventario</button></section>
+
+<section class="card"><h2>📝 Registro manual de cajas</h2>
+<p class="small">Aquí puedes registrar o modificar manualmente el número económico y las placas de cada código de barras. Los cambios se guardan en este dispositivo.</p>
+<div id="manualCajas" class="manual-list"></div>
+</section>
+
+<section class="card"><h2>🕘 Historial</h2><button class="blue" onclick="csv()">⬇️ Exportar historial a CSV</button><div id="hist" style="margin-top:10px"></div></section>
+
+<section class="card"><h2>💾 Respaldo</h2><p class="small">Crea una copia completa del inventario e historial. Es recomendable hacerla periódicamente.</p>
+<div class="grid"><button class="blue" onclick="backup()">⬇️ Crear respaldo</button><label class="gray" style="text-align:center;cursor:pointer">⬆️ Restaurar respaldo<input id="rf" type="file" accept=".json,application/json" style="display:none" onchange="restore(event)"></label></div>
+<button class="red full" onclick="wipe()">⚠️ Borrar todos los datos</button></section>
+</main></div>
+
+<div id="modal" class="modal" style="display:none"><div class="modalbox"><h2>Confirmar salida</h2><div id="mt"></div><div style="display:flex;gap:8px;margin-top:14px"><button class="gray" onclick="closeM()">Cancelar</button><button class="red" onclick="salida()">Confirmar salida</button></div></div></div>
+
+<script>
+const U='Mone12',P='Yardajuarez',DK='yarda_cajas_v2',HK='yarda_historial_v2',SK='yarda_login';
+let filtro='in',pend=null;
+const data=()=>JSON.parse(localStorage.getItem(DK)||'{}');
+const hist=()=>JSON.parse(localStorage.getItem(HK)||'[]');
+const saveD=x=>localStorage.setItem(DK,JSON.stringify(x));
+const saveH=x=>localStorage.setItem(HK,JSON.stringify(x));
+const pad=x=>String(x).padStart(5,'0');
+const valid=x=>/^\d{5}$/.test(x)&&+x>=1&&+x<=100;
+const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fecha=()=>new Date().toLocaleString('es-MX',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit'});
+function login(){
+ const user=document.getElementById('lu').value.trim();
+ const pass=document.getElementById('lp').value;
+ const err=document.getElementById('le');
+ if(user===U && pass===P){
+   sessionStorage.setItem(SK,'1');
+   document.getElementById('login').style.display='none';
+   document.getElementById('app').style.display='block';
+   render();
+ }else{
+   err.textContent='Usuario o contraseña incorrectos.';
+ }
+}
+function show(){
+ document.getElementById('login').style.display='none';
+ document.getElementById('app').style.display='block';
+ render();
+}
+function logout(){sessionStorage.removeItem(SK);location.reload()}
+function norm(el){el.value=el.value.replace(/\D/g,'').slice(0,5);if(el.value)el.value=pad(+el.value)}
+function cargarDatosEntrada(){
+ let c=document.getElementById('ec').value.trim(),d=data(),x=d[c];
+ if(valid(c)&&x){
+   document.getElementById('ee').value=x.economico||'';
+   document.getElementById('ep').value=x.placas||'';
+ }
+}
+function entrada(){
+ let c=document.getElementById('ec').value.trim(),e=document.getElementById('ee').value.trim(),p=document.getElementById('ep').value.trim(),d=data();
+ if(!valid(c))return alert('Código inválido. Usa del 00001 al 00100.');
+ if(!e||!p)return alert('Captura número económico y placas.');
+ if(d[c]?.estado==='EN YARDA')return alert('Esa caja ya está EN YARDA.');
+ d[c]={codigo:c,economico:e,placas:p,estado:'EN YARDA'};saveD(d);addH('Entrada',d[c]);
+ document.getElementById('ec').value='';document.getElementById('ee').value='';document.getElementById('ep').value='';render();alert('Entrada registrada correctamente.')
+}
+function buscarSalida(){
+ let c=document.getElementById('xc').value.trim(),d=data();
+ if(!valid(c))return alert('Código inválido. Usa del 00001 al 00100.');
+ if(!d[c]||d[c].estado!=='EN YARDA')return alert('La caja no está actualmente EN YARDA.');
+ pend=c;document.getElementById('mt').innerHTML='<p><b>Código:</b> '+c+'</p><p><b>Número económico:</b> '+esc(d[c].economico)+'</p><p><b>Placas:</b> '+esc(d[c].placas)+'</p><p>¿Confirmas que salió de la yarda?</p>';document.getElementById('modal').style.display='flex'
+}
+function salida(){if(!pend)return;let d=data();d[pend].estado='SALIÓ';saveD(d);addH('Salida',d[pend]);pend=null;closeM();document.getElementById('xc').value='';render();alert('Salida registrada correctamente.')}
+function closeM(){document.getElementById('modal').style.display='none'}
+function addH(a,b){let h=hist();h.unshift({fechaHora:fecha(),usuario:U,accion:a,codigo:b.codigo,economico:b.economico,placas:b.placas});saveH(h)}
+function setF(f,b){filtro=f;document.querySelectorAll('.filter').forEach(x=>x.classList.remove('active'));b.classList.add('active');renderInv()}
+function render(){renderInv();renderHist();renderManual()}
+function renderInv(){
+ let d=data(),arr=Object.values(d),s=document.getElementById('q').value.trim().toLowerCase();
+ document.getElementById('cin').textContent=arr.filter(x=>x.estado==='EN YARDA').length;document.getElementById('cout').textContent=arr.filter(x=>x.estado==='SALIÓ').length;document.getElementById('ct').textContent=arr.length;
+ let a=arr.filter(x=>filtro==='all'||(filtro==='in'&&x.estado==='EN YARDA')||(filtro==='out'&&x.estado==='SALIÓ')).filter(x=>!s||[x.codigo,x.economico,x.placas].some(v=>String(v).toLowerCase().includes(s))).sort((a,b)=>a.codigo.localeCompare(b.codigo));
+ document.getElementById('inv').innerHTML=a.length?'<div class="table"><table><thead><tr><th>Código</th><th>Número económico</th><th>Placas</th><th>Estado</th></tr></thead><tbody>'+a.map(x=>'<tr><td>'+x.codigo+'</td><td>'+esc(x.economico)+'</td><td>'+esc(x.placas)+'</td><td><span class="badge '+(x.estado==='EN YARDA'?'in':'out')+'">'+(x.estado==='EN YARDA'?'🟢 EN YARDA':'🔴 SALIÓ')+'</span></td></tr>').join('')+'</tbody></table></div>':'<div class="empty">No hay cajas en este filtro.</div>'
+}
+function renderManual(){
+ let d=data(),el=document.getElementById('manualCajas'),out='';
+ for(let i=1;i<=100;i++){
+   let c=pad(i),x=d[c]||{};
+   out+='<div class="manual-row"><div class="code">'+c+'</div>'+
+     '<input id="me_'+c+'" value="'+esc(x.economico||'')+'" placeholder="Número económico" aria-label="Número económico '+c+'">'+
+     '<input id="mp_'+c+'" value="'+esc(x.placas||'')+'" placeholder="Placas" aria-label="Placas '+c+'">'+
+     '<button class="blue" onclick="guardarManual(\''+c+'\')">Guardar</button></div>';
+ }
+ el.innerHTML=out;
+}
+function guardarManual(c){
+ let d=data(),e=document.getElementById('me_'+c).value.trim(),p=document.getElementById('mp_'+c).value.trim(),x=d[c]||{codigo:c,estado:'SALIÓ'};
+ d[c]={codigo:c,economico:e,placas:p,estado:x.estado||'SALIÓ'};
+ saveD(d);render();renderManual();alert('Código '+c+' actualizado correctamente.');
+}
+function renderHist(){let h=hist();const histEl=document.getElementById('hist');histEl.innerHTML=h.length?'<div class="table"><table><thead><tr><th>Fecha y hora</th><th>Usuario</th><th>Acción</th><th>Código</th><th>Número económico</th><th>Placas</th></tr></thead><tbody>'+h.map(x=>'<tr><td>'+esc(x.fechaHora)+'</td><td>'+esc(x.usuario)+'</td><td>'+esc(x.accion)+'</td><td>'+x.codigo+'</td><td>'+esc(x.economico)+'</td><td>'+esc(x.placas)+'</td></tr>').join('')+'</tbody></table></div>':'<div class="empty">Sin movimientos registrados.</div>'}
+function csv(){let h=hist();if(!h.length)return alert('No hay historial para exportar.');let r=[['Fecha y hora','Usuario','Acción','Código','Número económico','Placas'],...h.map(x=>[x.fechaHora,x.usuario,x.accion,x.codigo,x.economico,x.placas])];let out='\uFEFF'+r.map(a=>a.map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(',')).join('\r\n');let a=document.createElement('a'),u=URL.createObjectURL(new Blob([out],{type:'text/csv;charset=utf-8'}));a.href=u;a.download='historial_yarda.csv';a.click();URL.revokeObjectURL(u)}
+function backup(){let o={version:2,exportedAt:new Date().toISOString(),data:data(),history:hist()},a=document.createElement('a'),u=URL.createObjectURL(new Blob([JSON.stringify(o,null,2)],{type:'application/json'}));a.href=u;a.download='respaldo_yarda_'+new Date().toISOString().slice(0,10)+'.json';a.click();URL.revokeObjectURL(u)}
+function restore(ev){let f=ev.target.files?.[0];if(!f)return;let r=new FileReader();r.onload=()=>{try{let o=JSON.parse(r.result);if(!o||typeof o.data!=='object'||!Array.isArray(o.history))throw 0;if(!confirm('Esto reemplazará el inventario e historial actuales. ¿Continuar?'))return;saveD(o.data);saveH(o.history);render();alert('Respaldo restaurado correctamente.')}catch(e){alert('El archivo no es un respaldo válido.')}ev.target.value=''};r.readAsText(f)}
+function wipe(){if(confirm('¿Borrar TODO el inventario y TODO el historial?'))if(confirm('Última confirmación: esta acción no se puede deshacer.')){localStorage.removeItem(DK);localStorage.removeItem(HK);render();alert('Datos borrados.')}}
+function printInv(){let d=data(),a=Object.values(d).filter(x=>filtro==='all'||(filtro==='in'&&x.estado==='EN YARDA')||(filtro==='out'&&x.estado==='SALIÓ'));if(!a.length)return alert('No hay cajas para imprimir.');let w=window.open('','_blank');if(!w)return alert('El navegador bloqueó la ventana.');w.document.write('<html><head><title>Inventario de yarda</title><style>body{font-family:Arial;padding:20px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #ccc;padding:8px;text-align:left}</style></head><body><h2>Inventario de yarda</h2><p>'+esc(fecha())+'</p><table><tr><th>Código</th><th>Número económico</th><th>Placas</th><th>Estado</th></tr>'+a.map(x=>'<tr><td>'+x.codigo+'</td><td>'+esc(x.economico)+'</td><td>'+esc(x.placas)+'</td><td>'+x.estado+'</td></tr>').join('')+'</table><script>onload=()=>print()<\/script></body></html>');w.document.close()}
+async function scan(id){
+ if(!navigator.mediaDevices?.getUserMedia)return alert('Este navegador no permite usar la cámara. Puedes escribir el código manualmente.');
+ if(!('BarcodeDetector' in window))return alert('Este navegador no admite el lector de códigos integrado. Escribe el código manualmente.');
+ try{let fm=await BarcodeDetector.getSupportedFormats(),ok=fm.filter(x=>['code_128','code_39','ean_13','ean_8','upc_a','upc_e','itf'].includes(x)),det=new BarcodeDetector({formats:ok.length?ok:undefined}),st=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}}});
+ let ov=document.createElement('div');ov.className='modal';ov.innerHTML='<div class="modalbox"><h2>📷 Escanear código</h2><video id="vid" autoplay playsinline style="width:100%;border-radius:10px;background:#000"></video><p class="small">Apunta la cámara al código de barras.</p><button class="gray full">Cancelar</button></div>';document.body.appendChild(ov);let v=ov.querySelector('video');v.srcObject=st;await v.play();let active=true;ov.querySelector('button').onclick=()=>{active=false;st.getTracks().forEach(t=>t.stop());ov.remove()};
+ (async function loop(){if(!active)return;try{let z=await det.detect(v);if(z.length){let n=z[0].rawValue.replace(/\D/g,'');if(valid(pad(+n))){let codigo=pad(+n);document.getElementById(id).value=codigo;if(id==='ec')cargarDatosEntrada();active=false;st.getTracks().forEach(t=>t.stop());ov.remove();return}}}catch(e){}requestAnimationFrame(loop)})()
+ }catch(e){alert('No se pudo abrir la cámara. Revisa el permiso del navegador o escribe el código manualmente.')}
+}
+document.getElementById('ec').addEventListener('input',()=>{norm(document.getElementById('ec'));cargarDatosEntrada();});
+document.getElementById('xc').addEventListener('input',()=>norm(document.getElementById('xc')));
+document.getElementById('q').addEventListener('input',renderInv);
+document.getElementById('lp').addEventListener('keydown',e=>{if(e.key==='Enter')login()});
+document.getElementById('xc').addEventListener('keydown',e=>{if(e.key==='Enter')buscarSalida()});
+if(sessionStorage.getItem(SK)==='1')show();
+</script></body></html>
