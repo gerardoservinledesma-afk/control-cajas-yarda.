@@ -16,7 +16,12 @@ button,.btn{border:0;border-radius:10px;padding:12px 14px;font:inherit;font-weig
 @media(max-width:600px){.grid{grid-template-columns:1fr}.head{align-items:flex-start}.stats b{font-size:18px}}
 @media print{header,.filters,.search,.stats,.no-print{display:none!important}body{background:white}main{max-width:none;padding:0}.card{border:0;box-shadow:none}}
 
-.menuDots{background:none;color:white;font-size:24px;padding:0 6px;vertical-align:middle}.infoBox{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}.infoBox div{background:#f7f8fa;border:1px solid #e2e6ea;border-radius:10px;padding:10px}.infoBox b{display:block;font-size:11px;color:#6b7280}.infoBox span{display:block;font-weight:800;margin-top:3px}.adminDrawer{position:fixed;inset:0;background:#0008;display:none;z-index:20}.adminDrawer.open{display:flex;justify-content:flex-end}.adminPanel{background:white;width:min(430px,94vw);height:100%;overflow:auto;padding:16px}.adminSection{display:none}.adminSection.open{display:block}.manualRow{display:grid;grid-template-columns:70px 1fr 1fr;gap:6px;margin-bottom:7px;align-items:center}.manualCode{font-weight:900;text-align:center;background:#f3f5f7;padding:11px 5px;border-radius:9px}.tireTable{overflow:auto}.danger{background:#c62828;color:white}
+.menuDots{background:none;color:white;font-size:24px;padding:0 6px;vertical-align:middle}.infoBox{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}.infoBox div{background:#f7f8fa;border:1px solid #e2e6ea;border-radius:10px;padding:10px}.infoBox b{display:block;font-size:11px;color:#6b7280}.infoBox span{display:block;font-weight:800;margin-top:3px}.adminDrawer{position:fixed;inset:0;background:#0008;display:none;z-index:20}.adminDrawer.open{display:flex;justify-content:flex-end}.adminPanel{background:white;width:min(430px,94vw);height:100%;overflow:auto;padding:16px}.adminSection{display:none}.adminSection.open{display:block}.manualRow{display:grid;grid-template-columns:70px 1fr 1fr;gap:6px;margin-bottom:7px;align-items:center}.manualCode{font-weight:900;text-align:center;background:#f3f5f7;padding:11px 5px;border-radius:9px}.tireTable{overflow:auto}
+.tire-status{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.tire-light{width:34px;height:34px;border-radius:50%;padding:0;border:2px solid #cfd5dc;font-size:17px;opacity:.3}
+.tire-light.selected{opacity:1;box-shadow:0 0 0 2px #111827;transform:scale(1.08)}
+.tire-state-label{font-size:11px;font-weight:800}
+.danger{background:#c62828;color:white}
 </style></head><body>
 
 <section id="login" class="login"><div class="card loginbox">
@@ -266,9 +271,12 @@ function setTireState(i,v){
 }
 function tireLight(v){return v==='BUEN ESTADO'?'🟢':v==='ESTADO INTERMEDIO'?'🟡':'🔴'}
 function tireOptions(x,i){
-  return '<select onchange="setTireState('+i+',this.value)">'+
-    ['BUEN ESTADO','ESTADO INTERMEDIO','MAL ESTADO'].map(v=>'<option value="'+v+'" '+((x.estado||'BUEN ESTADO')===v?'selected':'')+'>'+tireLight(v)+' '+v+'</option>').join('')+
-    '</select>';
+  const s=x.estado||'BUEN ESTADO';
+  return '<div class="tire-status">'+
+    '<button type="button" class="tire-light '+(s==='BUEN ESTADO'?'selected':'')+'" onclick="setTireState('+i+',\'BUEN ESTADO\')" title="Buen estado">🟢</button>'+
+    '<button type="button" class="tire-light '+(s==='ESTADO INTERMEDIO'?'selected':'')+'" onclick="setTireState('+i+',\'ESTADO INTERMEDIO\')" title="Estado intermedio">🟡</button>'+
+    '<button type="button" class="tire-light '+(s==='MAL ESTADO'?'selected':'')+'" onclick="setTireState('+i+',\'MAL ESTADO\')" title="Mal estado">🔴</button>'+
+    '<span class="tire-state-label">'+tireLight(s)+' '+esc(s)+'</span></div>';
 }
 function renderTires(){
   const a=tires(),el=document.getElementById('tireList');
