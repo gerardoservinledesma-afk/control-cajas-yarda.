@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="es"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Inventario</title>
+<title>Control de Inventarios</title>
 <style>
 *{box-sizing:border-box}body{margin:0;background:#f4f6f8;color:#17202a;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
 header{background:#111827;color:#fff;padding:14px 16px;position:sticky;top:0;z-index:4}.head{max-width:950px;margin:auto;display:flex;justify-content:space-between;align-items:center;gap:8px}h1{font-size:19px;margin:0}main{max-width:950px;margin:auto;padding:12px}
@@ -60,116 +60,308 @@ button,.btn{border:0;border-radius:10px;padding:12px 14px;font:inherit;font-weig
 <div id="admin-respaldo" class="adminSection"><h2 style="margin-top:14px">💾 Respaldo</h2><button class="blue full" onclick="backup()">⬇️ Crear respaldo</button><label class="gray full" style="display:block;text-align:center">⬆️ Restaurar respaldo<input id="rf" type="file" accept=".json,application/json" style="display:none" onchange="restore(event)"></label><button class="danger full" onclick="wipe()">⚠️ Borrar todos los datos</button></div>
 <div id="admin-llantas" class="adminSection"><h2 style="margin-top:14px">🛞 Inventario de llantas</h2><div id="adminTires"></div></div>
 </div></div></div>
+
 <script>
-const U='Mone12',P='Yardajuarez',DK='yarda_cajas_v2',HK='yarda_historial_v2',SK='yarda_login',SESSION_MS=10*60*1000,SESSION_TIME_KEY='yarda_login_time';
+const U='Mone12',P='Yardajuarez',DK='yarda_cajas_v2',HK='yarda_historial_v2',SK='yarda_login',TK='yarda_llantas_v1';
+const SESSION_MS=10*60*1000,SESSION_TS='yarda_login_ts';
 let filtro='in',pend=null,sessionTimer=null;
+
 const data=()=>JSON.parse(localStorage.getItem(DK)||'{}');
 const hist=()=>JSON.parse(localStorage.getItem(HK)||'[]');
+const tires=()=>JSON.parse(localStorage.getItem(TK)||'[]');
 const saveD=x=>localStorage.setItem(DK,JSON.stringify(x));
 const saveH=x=>localStorage.setItem(HK,JSON.stringify(x));
+const saveT=x=>localStorage.setItem(TK,JSON.stringify(x));
 const pad=x=>String(x).padStart(5,'0');
 const valid=x=>/^\d{5}$/.test(x)&&+x>=1&&+x<=100;
 const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const fecha=()=>new Date().toLocaleString('es-MX',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit'});
-function expireSession(){sessionStorage.removeItem(SK);localStorage.removeItem(SESSION_TIME_KEY);clearTimeout(sessionTimer);location.reload();}
-function startSessionTimer(){
+
+function startSession(){
   clearTimeout(sessionTimer);
-  const started=Number(localStorage.getItem(SESSION_TIME_KEY)||0);
-  if(!started || Date.now()-started>=SESSION_MS){ expireSession(); return; }
-  sessionTimer=setTimeout(expireSession,SESSION_MS-(Date.now()-started));
+  const now=Date.now();
+  localStorage.setItem(SESSION_TS,String(now));
+  sessionTimer=setTimeout(expireSession,SESSION_MS);
 }
-function touchSession(){
-  if(sessionStorage.getItem(SK)!=='1') return;
-  localStorage.setItem(SESSION_TIME_KEY,String(Date.now()));
-  startSessionTimer();
-}
-['click','keydown','touchstart'].forEach(ev=>document.addEventListener(ev,touchSession,{passive:true}));
-function startSessionTimer(){
+function expireSession(){
   clearTimeout(sessionTimer);
-  const started=Number(localStorage.getItem(SESSION_TIME_KEY)||Date.now());
-  localStorage.setItem(SESSION_TIME_KEY,String(started));
-  const remaining=SESSION_MS-(Date.now()-started);
-  if(remaining<=0){ logout(); return; }
-  sessionTimer=setTimeout(logout,remaining);
+  sessionStorage.removeItem(SK);
+  localStorage.removeItem(SESSION_TS);
+  location.reload();
 }
+function refreshSession(){
+  if(!sessionStorage.getItem(SK)) return;
+  const t=Number(localStorage.getItem(SESSION_TS)||0);
+  if(!t || Date.now()-t>=SESSION_MS){ expireSession(); return; }
+  clearTimeout(sessionTimer);
+  sessionTimer=setTimeout(expireSession,SESSION_MS-(Date.now()-t));
+}
+['click','keydown','touchstart'].forEach(ev=>document.addEventListener(ev,refreshSession,{passive:true}));
+
 function login(){
   const user=document.getElementById('lu').value.trim();
   const pass=document.getElementById('lp').value;
   const err=document.getElementById('le');
   if(user===U && pass===P){
     sessionStorage.setItem(SK,'1');
-    localStorage.setItem(SESSION_TIME_KEY,String(Date.now()));
     document.getElementById('login').style.display='none';
     document.getElementById('app').style.display='block';
-    startSessionTimer();
+    startSession();
     render();
   }else{
     err.textContent='Usuario o contraseña incorrectos.';
   }
 }
 function show(){
- document.getElementById('login').style.display='none';
- document.getElementById('app').style.display='block';
- render();
+  document.getElementById('login').style.display='none';
+  document.getElementById('app').style.display='block';
+  refreshSession();
+  render();
 }
-function logout(){sessionStorage.removeItem(SK);localStorage.removeItem(SESSION_TIME_KEY);clearTimeout(sessionTimer);location.reload()}
-const ADMIN='Yardajuarez 1',TK='yarda_llantas_v1';
-function tires(){return JSON.parse(localStorage.getItem(TK)||'[]')}function saveT(x){localStorage.setItem(TK,JSON.stringify(x))}
-function openAdminMenu(){document.getElementById('adminDrawer').classList.add('open');document.getElementById('adminPass').focus()}
-function closeAdminMenu(){document.getElementById('adminDrawer').classList.remove('open')}
-function unlockAdmin(){if(document.getElementById('adminPass').value===ADMIN){document.getElementById('adminLock').style.display='none';document.getElementById('adminContent').style.display='block';renderManual();}else document.getElementById('adminErr').textContent='Contraseña incorrecta.'}
-function adminTab(n,b){document.querySelectorAll('.adminSection').forEach(x=>x.classList.remove('open'));document.getElementById('admin-'+n).classList.add('open');document.querySelectorAll('.filter').forEach(x=>x.classList.remove('active'));b.classList.add('active');if(n==='inventario')renderManual();if(n==='historial')renderHist();if(n==='llantas')renderAdminTires()}
-function renderManual(){let d=data(),el=document.getElementById('manualCajas'),o='';for(let i=1;i<=100;i++){let c=pad(i),x=d[c]||{};o+='<div class="manualRow"><div class="manualCode">'+c+'</div><input id="me_'+c+'" value="'+esc(x.economico||'')+'" placeholder="Económico"><input id="mp_'+c+'" value="'+esc(x.placas||'')+'" placeholder="Placas"></div>'}el.innerHTML=o}
-function guardarTodos(){let d=data();for(let i=1;i<=100;i++){let c=pad(i),e=document.getElementById('me_'+c).value.trim(),p=document.getElementById('mp_'+c).value.trim();if(e||p)d[c]={codigo:c,economico:e,placas:p,estado:d[c]?.estado||'SALIÓ'}}saveD(d);render();alert('Registros guardados.')}
-function guardarTire(){let c=document.getElementById('tireCode').value.trim(),p=document.getElementById('tireDesc').value.trim();if(!c)return alert('Captura el número de cautín.');let a=tires();if(a.some(x=>x.codigo.toLowerCase()===c.toLowerCase()))return alert('Ese número de cautín ya existe.');a.push({codigo:c,descripcion:p,fecha:fecha(),estado:'BUEN ESTADO'});saveT(a);document.getElementById('tireCode').value='';document.getElementById('tireDesc').value='';renderTires();renderAdminTires()}
-function setTireState(i,v){
-  let a=tires(); if(!a[i])return;
-  a[i].estado=v; saveT(a); renderTires(); renderAdminTires();
+function logout(){
+  clearTimeout(sessionTimer);
+  sessionStorage.removeItem(SK);
+  localStorage.removeItem(SESSION_TS);
+  location.reload();
 }
-function tireLight(v){return v==='BUEN ESTADO'?'🟢':v==='ESTADO INTERMEDIO'?'🟡':'🔴'}
-function renderTires(){
-  let a=tires(),el=document.getElementById('tireList');
-  el.innerHTML=a.length?'<div class="tireTable"><table><tr><th>Cautín</th><th>Descripción</th><th>Fecha</th><th>Estado</th></tr>'+
-  a.map((x,i)=>'<tr><td>'+esc(x.codigo)+'</td><td>'+esc(x.descripcion)+'</td><td>'+esc(x.fecha)+'</td><td><select onchange="setTireState('+i+',this.value)">'+
-  ['BUEN ESTADO','ESTADO INTERMEDIO','MAL ESTADO'].map(v=>'<option value="'+v+'" '+((x.estado||'BUEN ESTADO')===v?'selected':'')+'>'+tireLight(v)+' '+v+'</option>').join('')+
-  '</select></td></tr>').join('')+'</table></div>':'<div class="empty">No hay llantas registradas.</div>'
+
+function norm(el){
+  el.value=el.value.replace(/\D/g,'').slice(0,5);
+  if(el.value)el.value=pad(+el.value);
+}
+function cargarDatosEntrada(){
+  const c=document.getElementById('ec').value.trim(),d=data(),x=d[c];
+  const ee=document.getElementById('ee'),ep=document.getElementById('ep');
+  if(valid(c)&&x){
+    ee.textContent=x.economico||'—';
+    ep.textContent=x.placas||'—';
+    document.getElementById('entradaDatos').style.display='grid';
+    document.getElementById('entradaBtn').style.display='block';
+  }else{
+    ee.textContent='—';ep.textContent='—';
+    document.getElementById('entradaDatos').style.display='none';
+    document.getElementById('entradaBtn').style.display='none';
+  }
+}
+function entrada(){
+  const c=document.getElementById('ec').value.trim(),d=data(),x=d[c];
+  if(!valid(c))return alert('Código inválido. Usa del 00001 al 00100.');
+  if(!x||!x.economico||!x.placas)return alert('Código no registrado. Captúralo en Administración → Inventario de Yarda.');
+  if(x.estado==='EN YARDA')return alert('Esa caja ya está EN YARDA.');
+  x.estado='EN YARDA';
+  saveD(d);addH('Entrada',x);
+  document.getElementById('ec').value='';
+  document.getElementById('entradaDatos').style.display='none';
+  document.getElementById('entradaBtn').style.display='none';
+  render();
+  alert('Entrada registrada correctamente.');
 }
 function buscarSalida(){
- let c=document.getElementById('xc').value.trim(),d=data(),x=d[c];
- if(!valid(c))return alert('Código inválido. Usa del 00001 al 00100.');
- if(!x)return alert('Código no registrado.');
- if(x.estado!=='EN YARDA')return alert('La caja no está actualmente EN YARDA.');
- document.getElementById('xe').textContent=x.economico;document.getElementById('xp').textContent=x.placas;document.getElementById('salidaDatos').style.display='grid';document.getElementById('salidaBtn').style.display='block';pend=c;
+  const c=document.getElementById('xc').value.trim(),d=data(),x=d[c];
+  if(!valid(c))return alert('Código inválido. Usa del 00001 al 00100.');
+  if(!x)return alert('Código no registrado.');
+  if(x.estado!=='EN YARDA')return alert('La caja no está actualmente EN YARDA.');
+  document.getElementById('xe').textContent=x.economico;
+  document.getElementById('xp').textContent=x.placas;
+  document.getElementById('salidaDatos').style.display='grid';
+  document.getElementById('salidaBtn').style.display='block';
+  pend=c;
 }
-function salida(){if(!pend)return;let d=data();d[pend].estado='SALIÓ';saveD(d);addH('Salida',d[pend]);pend=null;document.getElementById('xc').value='';document.getElementById('salidaBtn').style.display='none';document.getElementById('salidaDatos').style.display='none';render();alert('Salida confirmada correctamente.')}
-function renderHist(){let h=hist();const histEl=document.getElementById('hist');histEl.innerHTML=h.length?'<div class="table"><table><thead><tr><th>Fecha y hora</th><th>Usuario</th><th>Acción</th><th>Código</th><th>Número económico</th><th>Placas</th></tr></thead><tbody>'+h.map(x=>'<tr><td>'+esc(x.fechaHora)+'</td><td>'+esc(x.usuario)+'</td><td>'+esc(x.accion)+'</td><td>'+x.codigo+'</td><td>'+esc(x.economico)+'</td><td>'+esc(x.placas)+'</td></tr>').join('')+'</tbody></table></div>':'<div class="empty">Sin movimientos registrados.</div>'}
-function csv(){let h=hist();if(!h.length)return alert('No hay historial para exportar.');let r=[['Fecha y hora','Usuario','Acción','Código','Número económico','Placas'],...h.map(x=>[x.fechaHora,x.usuario,x.accion,x.codigo,x.economico,x.placas])];let out='\uFEFF'+r.map(a=>a.map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(',')).join('\r\n');let a=document.createElement('a'),u=URL.createObjectURL(new Blob([out],{type:'text/csv;charset=utf-8'}));a.href=u;a.download='historial_yarda.csv';a.click();URL.revokeObjectURL(u)}
-function backup(){let o={version:2,exportedAt:new Date().toISOString(),data:data(),history:hist()},a=document.createElement('a'),u=URL.createObjectURL(new Blob([JSON.stringify(o,null,2)],{type:'application/json'}));a.href=u;a.download='respaldo_yarda_'+new Date().toISOString().slice(0,10)+'.json';a.click();URL.revokeObjectURL(u)}
-function restore(ev){let f=ev.target.files?.[0];if(!f)return;let r=new FileReader();r.onload=()=>{try{let o=JSON.parse(r.result);if(!o||typeof o.data!=='object'||!Array.isArray(o.history))throw 0;if(!confirm('Esto reemplazará el inventario e historial actuales. ¿Continuar?'))return;saveD(o.data);saveH(o.history);render();alert('Respaldo restaurado correctamente.')}catch(e){alert('El archivo no es un respaldo válido.')}ev.target.value=''};r.readAsText(f)}
-function wipe(){if(confirm('¿Borrar TODO el inventario y TODO el historial?'))if(confirm('Última confirmación: esta acción no se puede deshacer.')){localStorage.removeItem(DK);localStorage.removeItem(HK);render();alert('Datos borrados.')}}
-function printInv(){let d=data(),a=Object.values(d).filter(x=>filtro==='all'||(filtro==='in'&&x.estado==='EN YARDA')||(filtro==='out'&&x.estado==='SALIÓ'));if(!a.length)return alert('No hay cajas para imprimir.');let w=window.open('','_blank');if(!w)return alert('El navegador bloqueó la ventana.');w.document.write('<html><head><title>Inventario de yarda</title><style>body{font-family:Arial;padding:20px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #ccc;padding:8px;text-align:left}</style></head><body><h2>Inventario de yarda</h2><p>'+esc(fecha())+'</p><table><tr><th>Código</th><th>Número económico</th><th>Placas</th><th>Estado</th></tr>'+a.map(x=>'<tr><td>'+x.codigo+'</td><td>'+esc(x.economico)+'</td><td>'+esc(x.placas)+'</td><td>'+x.estado+'</td></tr>').join('')+'</table><script>onload=()=>print()<\/script></body></html>');w.document.close()}
+function salida(){
+  if(!pend)return;
+  const d=data();
+  if(!d[pend])return;
+  d[pend].estado='SALIÓ';
+  saveD(d);addH('Salida',d[pend]);
+  pend=null;
+  document.getElementById('xc').value='';
+  document.getElementById('salidaBtn').style.display='none';
+  document.getElementById('salidaDatos').style.display='none';
+  render();
+  alert('Salida confirmada correctamente.');
+}
+function closeM(){document.getElementById('modal').style.display='none'}
+function addH(a,b){
+  const h=hist();
+  h.unshift({fechaHora:fecha(),usuario:U,accion:a,codigo:b.codigo,economico:b.economico,placas:b.placas});
+  saveH(h);
+}
+
+function render(){
+  renderInv();
+  renderHist();
+  renderTires();
+  renderAdminTires();
+}
+function renderInv(){
+  const arr=Object.values(data());
+  document.getElementById('cin').textContent=arr.filter(x=>x.estado==='EN YARDA').length;
+  document.getElementById('cout').textContent=arr.filter(x=>x.estado==='SALIÓ').length;
+  document.getElementById('ct').textContent=arr.length;
+  const inv=document.getElementById('inv');
+  if(inv){
+    const a=arr.filter(x=>filtro==='all'||(filtro==='in'&&x.estado==='EN YARDA')||(filtro==='out'&&x.estado==='SALIÓ')).sort((a,b)=>a.codigo.localeCompare(b.codigo));
+    inv.innerHTML=a.length?'<div class="table"><table><thead><tr><th>Código</th><th>Número económico</th><th>Placas</th><th>Estado</th></tr></thead><tbody>'+
+      a.map(x=>'<tr><td>'+x.codigo+'</td><td>'+esc(x.economico)+'</td><td>'+esc(x.placas)+'</td><td><span class="badge '+(x.estado==='EN YARDA'?'in':'out')+'">'+(x.estado==='EN YARDA'?'🟢 EN YARDA':'🔴 SALIÓ')+'</span></td></tr>').join('')+
+      '</tbody></table></div>':'<div class="empty">No hay cajas en este filtro.</div>';
+  }
+}
+
+function openAdminMenu(){
+  document.getElementById('adminDrawer').classList.add('open');
+  document.getElementById('adminPass').focus();
+}
+function closeAdminMenu(){document.getElementById('adminDrawer').classList.remove('open')}
+function unlockAdmin(){
+  if(document.getElementById('adminPass').value==='Yardajuarez 1'){
+    document.getElementById('adminLock').style.display='none';
+    document.getElementById('adminContent').style.display='block';
+    renderManual();
+    renderAdminTires();
+  }else document.getElementById('adminErr').textContent='Contraseña incorrecta.';
+}
+function adminTab(n,b){
+  document.querySelectorAll('.adminSection').forEach(x=>x.classList.remove('open'));
+  document.getElementById('admin-'+n).classList.add('open');
+  document.querySelectorAll('.filter').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active');
+  if(n==='inventario')renderManual();
+  if(n==='historial')renderHist();
+  if(n==='llantas')renderAdminTires();
+}
+function renderManual(){
+  const d=data(),el=document.getElementById('manualCajas');let o='';
+  for(let i=1;i<=100;i++){
+    const c=pad(i),x=d[c]||{};
+    o+='<div class="manualRow"><div class="manualCode">'+c+'</div>'+
+      '<input id="me_'+c+'" value="'+esc(x.economico||'')+'" placeholder="Económico">'+
+      '<input id="mp_'+c+'" value="'+esc(x.placas||'')+'" placeholder="Placas"></div>';
+  }
+  el.innerHTML=o;
+}
+function guardarTodos(){
+  const d=data();
+  for(let i=1;i<=100;i++){
+    const c=pad(i),e=document.getElementById('me_'+c).value.trim(),p=document.getElementById('mp_'+c).value.trim();
+    if(e||p)d[c]={codigo:c,economico:e,placas:p,estado:d[c]?.estado||'SALIÓ'};
+  }
+  saveD(d);render();alert('Registros guardados.');
+}
+
+function guardarTire(){
+  const c=document.getElementById('tireCode').value.trim(),p=document.getElementById('tireDesc').value.trim();
+  if(!c)return alert('Captura el número de cautín.');
+  const a=tires();
+  if(a.some(x=>x.codigo.toLowerCase()===c.toLowerCase()))return alert('Ese número de cautín ya existe.');
+  a.push({codigo:c,descripcion:p,fecha:fecha(),estado:'BUEN ESTADO'});
+  saveT(a);
+  document.getElementById('tireCode').value='';
+  document.getElementById('tireDesc').value='';
+  renderTires();renderAdminTires();
+}
+function setTireState(i,v){
+  const a=tires();
+  if(!a[i])return;
+  a[i].estado=v;saveT(a);renderTires();renderAdminTires();
+}
+function tireLight(v){return v==='BUEN ESTADO'?'🟢':v==='ESTADO INTERMEDIO'?'🟡':'🔴'}
+function tireOptions(x,i){
+  return '<select onchange="setTireState('+i+',this.value)">'+
+    ['BUEN ESTADO','ESTADO INTERMEDIO','MAL ESTADO'].map(v=>'<option value="'+v+'" '+((x.estado||'BUEN ESTADO')===v?'selected':'')+'>'+tireLight(v)+' '+v+'</option>').join('')+
+    '</select>';
+}
+function renderTires(){
+  const a=tires(),el=document.getElementById('tireList');
+  el.innerHTML=a.length?'<div class="tireTable"><table><tr><th>Cautín</th><th>Descripción</th><th>Fecha</th><th>Estado</th></tr>'+
+    a.map((x,i)=>'<tr><td>'+esc(x.codigo)+'</td><td>'+esc(x.descripcion)+'</td><td>'+esc(x.fecha)+'</td><td>'+tireOptions(x,i)+'</td></tr>').join('')+
+    '</table></div>':'<div class="empty">No hay llantas registradas.</div>';
+}
+function renderAdminTires(){
+  const a=tires(),el=document.getElementById('adminTires');
+  if(!el)return;
+  el.innerHTML=a.length?'<div class="tireTable"><table><tr><th>Cautín</th><th>Descripción</th><th>Fecha</th><th>Estado</th></tr>'+
+    a.map((x,i)=>'<tr><td>'+esc(x.codigo)+'</td><td>'+esc(x.descripcion)+'</td><td>'+esc(x.fecha)+'</td><td>'+tireOptions(x,i)+'</td></tr>').join('')+
+    '</table></div>':'<div class="empty">No hay llantas registradas.</div>';
+}
+
+function renderHist(){
+  const h=hist(),el=document.getElementById('hist');
+  if(!el)return;
+  el.innerHTML=h.length?'<div class="table"><table><thead><tr><th>Fecha y hora</th><th>Usuario</th><th>Acción</th><th>Código</th><th>Número económico</th><th>Placas</th></tr></thead><tbody>'+
+    h.map(x=>'<tr><td>'+esc(x.fechaHora)+'</td><td>'+esc(x.usuario)+'</td><td>'+esc(x.accion)+'</td><td>'+x.codigo+'</td><td>'+esc(x.economico)+'</td><td>'+esc(x.placas)+'</td></tr>').join('')+
+    '</tbody></table></div>':'<div class="empty">Sin movimientos registrados.</div>';
+}
+function csv(){
+  const h=hist();if(!h.length)return alert('No hay historial para exportar.');
+  const r=[['Fecha y hora','Usuario','Acción','Código','Número económico','Placas'],...h.map(x=>[x.fechaHora,x.usuario,x.accion,x.codigo,x.economico,x.placas])];
+  const out='\uFEFF'+r.map(a=>a.map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(',')).join('\r\n');
+  const a=document.createElement('a'),u=URL.createObjectURL(new Blob([out],{type:'text/csv;charset=utf-8'}));
+  a.href=u;a.download='historial_yarda.csv';a.click();URL.revokeObjectURL(u);
+}
+function backup(){
+  const o={version:2,exportedAt:new Date().toISOString(),data:data(),history:hist(),tires:tires()};
+  const a=document.createElement('a'),u=URL.createObjectURL(new Blob([JSON.stringify(o,null,2)],{type:'application/json'}));
+  a.href=u;a.download='respaldo_yarda_'+new Date().toISOString().slice(0,10)+'.json';a.click();URL.revokeObjectURL(u);
+}
+function restore(ev){
+  const f=ev.target.files?.[0];if(!f)return;
+  const r=new FileReader();
+  r.onload=()=>{
+    try{
+      const o=JSON.parse(r.result);
+      if(!o||typeof o.data!=='object'||!Array.isArray(o.history))throw 0;
+      if(!confirm('Esto reemplazará el inventario e historial actuales. ¿Continuar?'))return;
+      saveD(o.data);saveH(o.history);if(Array.isArray(o.tires))saveT(o.tires);
+      render();alert('Respaldo restaurado correctamente.');
+    }catch(e){alert('El archivo no es un respaldo válido.')}
+    ev.target.value='';
+  };
+  r.readAsText(f);
+}
+function wipe(){
+  if(confirm('¿Borrar TODO el inventario y TODO el historial?'))if(confirm('Última confirmación: esta acción no se puede deshacer.')){
+    localStorage.removeItem(DK);localStorage.removeItem(HK);localStorage.removeItem(TK);render();alert('Datos borrados.');
+  }
+}
 async function scan(id){
- if(!navigator.mediaDevices?.getUserMedia)return alert('Este navegador no permite usar la cámara. Puedes escribir el código manualmente.');
- if(!('BarcodeDetector' in window))return alert('Este navegador no admite el lector de códigos integrado. Escribe el código manualmente.');
- try{let fm=await BarcodeDetector.getSupportedFormats(),ok=fm.filter(x=>['code_128','code_39','ean_13','ean_8','upc_a','upc_e','itf'].includes(x)),det=new BarcodeDetector({formats:ok.length?ok:undefined}),st=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}}});
- let ov=document.createElement('div');ov.className='modal';ov.innerHTML='<div class="modalbox"><h2>📷 Escanear código</h2><video id="vid" autoplay playsinline style="width:100%;border-radius:10px;background:#000"></video><p class="small">Apunta la cámara al código de barras.</p><button class="gray full">Cancelar</button></div>';document.body.appendChild(ov);let v=ov.querySelector('video');v.srcObject=st;await v.play();let active=true;ov.querySelector('button').onclick=()=>{active=false;st.getTracks().forEach(t=>t.stop());ov.remove()};
- (async function loop(){if(!active)return;try{let z=await det.detect(v);if(z.length){let n=z[0].rawValue.replace(/\D/g,'');if(valid(pad(+n))){document.getElementById(id).value=pad(+n);if(id==='ec')entrada();else buscarSalida();active=false;st.getTracks().forEach(t=>t.stop());ov.remove();return}}}catch(e){}requestAnimationFrame(loop)})()
- }catch(e){alert('No se pudo abrir la cámara. Revisa el permiso del navegador o escribe el código manualmente.')}
+  if(!navigator.mediaDevices?.getUserMedia)return alert('Este navegador no permite usar la cámara. Puedes escribir el código manualmente.');
+  if(!('BarcodeDetector' in window))return alert('Este navegador no admite el lector de códigos integrado. Escribe el código manualmente.');
+  try{
+    const fm=await BarcodeDetector.getSupportedFormats(),ok=fm.filter(x=>['code_128','code_39','ean_13','ean_8','upc_a','upc_e','itf'].includes(x));
+    const det=new BarcodeDetector({formats:ok.length?ok:undefined});
+    const st=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}}});
+    const ov=document.createElement('div');ov.className='modal';
+    ov.innerHTML='<div class="modalbox"><h2>📷 Escanear código</h2><video id="vid" autoplay playsinline style="width:100%;border-radius:10px;background:#000"></video><p class="small">Apunta la cámara al código de barras.</p><button class="gray full">Cancelar</button></div>';
+    document.body.appendChild(ov);
+    const v=ov.querySelector('video');v.srcObject=st;await v.play();let active=true;
+    ov.querySelector('button').onclick=()=>{active=false;st.getTracks().forEach(t=>t.stop());ov.remove()};
+    (async function loop(){
+      if(!active)return;
+      try{
+        const z=await det.detect(v);
+        if(z.length){
+          const n=z[0].rawValue.replace(/\D/g,'');
+          if(valid(pad(+n))){
+            document.getElementById(id).value=pad(+n);
+            if(id==='ec')cargarDatosEntrada();else buscarSalida();
+            active=false;st.getTracks().forEach(t=>t.stop());ov.remove();return;
+          }
+        }
+      }catch(e){}
+      requestAnimationFrame(loop);
+    })();
+  }catch(e){alert('No se pudo abrir la cámara. Revisa el permiso del navegador o escribe el código manualmente.')}
 }
-document.getElementById('ec').addEventListener('input',()=>{norm(document.getElementById('ec'));if(valid(document.getElementById('ec').value))entrada()});
+
+document.getElementById('ec').addEventListener('input',()=>{
+  norm(document.getElementById('ec'));cargarDatosEntrada();
+});
 document.getElementById('xc').addEventListener('input',()=>norm(document.getElementById('xc')));
-document.getElementById('q').addEventListener('input',renderInv);
 document.getElementById('lp').addEventListener('keydown',e=>{if(e.key==='Enter')login()});
 document.getElementById('xc').addEventListener('keydown',e=>{if(e.key==='Enter')buscarSalida()});
-(function(){
-  if(sessionStorage.getItem(SK)==='1'){
-    const started=Number(localStorage.getItem(SESSION_TIME_KEY)||0);
-    if(!started || Date.now()-started>=SESSION_MS){
-      sessionStorage.removeItem(SK); localStorage.removeItem(SESSION_TIME_KEY);
-    }else{
-      show();
-      startSessionTimer();
-    }
-  }
-})();
-</script></body></html>
+document.getElementById('adminPass').addEventListener('keydown',e=>{if(e.key==='Enter')unlockAdmin()});
+
+if(sessionStorage.getItem(SK)==='1')show();
+</script>
+
+</body></html>
