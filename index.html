@@ -192,6 +192,13 @@ function addH(a,b){
   saveH(h);
 }
 
+function renderInicioEstados(){
+  const d=data(), arr=Object.values(d).sort((a,b)=>a.codigo.localeCompare(b.codigo));
+  const en=arr.filter(x=>x.estado==='EN YARDA'), sal=arr.filter(x=>x.estado==='SALIÓ');
+  const fmt=x=>'<div style="padding:7px 0;border-bottom:1px solid #e2e6ea"><b>Caja: '+esc(x.codigo)+'</b><br><span>Número económico: '+esc(x.economico||'—')+'</span><br><span>Placas: '+esc(x.placas||'—')+'</span></div>';
+  document.getElementById('inicioEnYarda').innerHTML=en.length?en.map(fmt).join(''):'No hay cajas en yarda.';
+  document.getElementById('inicioSalieron').innerHTML=sal.length?sal.map(fmt).join(''):'No hay cajas que hayan salido.';
+}
 function render(){
   renderInv();
   renderHist();
