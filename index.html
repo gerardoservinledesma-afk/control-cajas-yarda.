@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="es"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Control de Inventarios</title>
+<title>Inventario</title>
 <style>
 *{box-sizing:border-box}body{margin:0;background:#f4f6f8;color:#17202a;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
 header{background:#111827;color:#fff;padding:14px 16px;position:sticky;top:0;z-index:4}.head{max-width:950px;margin:auto;display:flex;justify-content:space-between;align-items:center;gap:8px}h1{font-size:19px;margin:0}main{max-width:950px;margin:auto;padding:12px}
@@ -61,15 +61,9 @@ button,.btn{border:0;border-radius:10px;padding:12px 14px;font:inherit;font-weig
 <div id="admin-llantas" class="adminSection"><h2 style="margin-top:14px">🛞 Inventario de llantas</h2><div id="adminTires"></div></div>
 </div></div></div>
 <script>
-const U='Mone12',P='Yardajuarez',DK='yarda_cajas_v2',HK='yarda_historial_v2',SK='yarda_login',SESSION_MS=10*60*1000,SESSION_TS='yarda_login_ts';
-let sessionTimer=null;
-function startSession(){localStorage.setItem(SESSION_TS,String(Date.now()));clearTimeout(sessionTimer);sessionTimer=setTimeout(expireSession,SESSION_MS);}
-function expireSession(){sessionStorage.removeItem(SK);localStorage.removeItem(SESSION_TS);location.reload();}
-function refreshSession(){if(!sessionStorage.getItem(SK))return;const t=Number(localStorage.getItem(SESSION_TS)||0);if(!t||Date.now()-t>=SESSION_MS)return expireSession();startSession();}
-['click','keydown','touchstart'].forEach(ev=>document.addEventListener(ev,refreshSession,{passive:true}));
-let filtro='in',pend=null;
+const U='Mone12',P='Yardajuarez',DK='yarda_cajas_v2',HK='yarda_historial_v2',SK='yarda_login',SESSION_MS=10*60*1000,SESSION_TIME_KEY='yarda_login_time';
+let filtro='in',pend=null,sessionTimer=null;
 const data=()=>JSON.parse(localStorage.getItem(DK)||'{}');
-refreshSession();
 const hist=()=>JSON.parse(localStorage.getItem(HK)||'[]');
 const saveD=x=>localStorage.setItem(DK,JSON.stringify(x));
 const saveH=x=>localStorage.setItem(HK,JSON.stringify(x));
@@ -77,8 +71,19 @@ const pad=x=>String(x).padStart(5,'0');
 const valid=x=>/^\d{5}$/.test(x)&&+x>=1&&+x<=100;
 const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const fecha=()=>new Date().toLocaleString('es-MX',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit'});
-const SESSION_MS=10*60*1000, SESSION_TIME_KEY='yarda_login_time';
-let sessionTimer=null;
+function expireSession(){sessionStorage.removeItem(SK);localStorage.removeItem(SESSION_TIME_KEY);clearTimeout(sessionTimer);location.reload();}
+function startSessionTimer(){
+  clearTimeout(sessionTimer);
+  const started=Number(localStorage.getItem(SESSION_TIME_KEY)||0);
+  if(!started || Date.now()-started>=SESSION_MS){ expireSession(); return; }
+  sessionTimer=setTimeout(expireSession,SESSION_MS-(Date.now()-started));
+}
+function touchSession(){
+  if(sessionStorage.getItem(SK)!=='1') return;
+  localStorage.setItem(SESSION_TIME_KEY,String(Date.now()));
+  startSessionTimer();
+}
+['click','keydown','touchstart'].forEach(ev=>document.addEventListener(ev,touchSession,{passive:true}));
 function startSessionTimer(){
   clearTimeout(sessionTimer);
   const started=Number(localStorage.getItem(SESSION_TIME_KEY)||Date.now());
@@ -107,7 +112,7 @@ function show(){
  document.getElementById('app').style.display='block';
  render();
 }
-function logout(){sessionStorage.removeItem(SK);localStorage.removeItem(SESSION_TS);clearTimeout(sessionTimer);location.reload()}
+function logout(){sessionStorage.removeItem(SK);localStorage.removeItem(SESSION_TIME_KEY);clearTimeout(sessionTimer);location.reload()}
 const ADMIN='Yardajuarez 1',TK='yarda_llantas_v1';
 function tires(){return JSON.parse(localStorage.getItem(TK)||'[]')}function saveT(x){localStorage.setItem(TK,JSON.stringify(x))}
 function openAdminMenu(){document.getElementById('adminDrawer').classList.add('open');document.getElementById('adminPass').focus()}
@@ -156,14 +161,15 @@ document.getElementById('xc').addEventListener('input',()=>norm(document.getElem
 document.getElementById('q').addEventListener('input',renderInv);
 document.getElementById('lp').addEventListener('keydown',e=>{if(e.key==='Enter')login()});
 document.getElementById('xc').addEventListener('keydown',e=>{if(e.key==='Enter')buscarSalida()});
-if(sessionStorage.getItem(SK)==='1')show();
-<script>
 (function(){
   if(sessionStorage.getItem(SK)==='1'){
     const started=Number(localStorage.getItem(SESSION_TIME_KEY)||0);
     if(!started || Date.now()-started>=SESSION_MS){
       sessionStorage.removeItem(SK); localStorage.removeItem(SESSION_TIME_KEY);
-    }else{ show(); }
+    }else{
+      show();
+      startSessionTimer();
+    }
   }
 })();
 </script></body></html>
