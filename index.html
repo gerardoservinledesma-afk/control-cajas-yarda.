@@ -34,17 +34,16 @@ button,.btn{border:0;border-radius:10px;padding:12px 14px;font:inherit;font-weig
 <div id="app" style="display:none"><header><div class="head"><h1>🚛 🌎 Control de Inventarios</h1><span><button class="menuDots" onclick="openAdminMenu()" aria-label="Ajustes">⋮</button> Usuario: <b>Mone12</b> · <button onclick="logout()" style="background:none;color:white;padding:0">Salir</button></span></div></header>
 <main>
 <section class="card"><h2>📥 Entrada a Yarda</h2>
-<div class="scan"><input id="ec" inputmode="numeric" maxlength="5" placeholder="Escanea el código de barras"><button class="gray" onclick="scan('ec')">📷</button></div>
 <label>Número económico</label>
-<input id="entradaEconomico" inputmode="numeric" placeholder="Captura el número económico (opcional)">
+<input id="entradaEconomico" inputmode="numeric" placeholder="Captura el número económico">
+<div class="scan"><input id="ec" inputmode="numeric" maxlength="5" placeholder="Escanea el código de barras"><button class="gray" onclick="scan('ec')">📷</button></div>
 <div id="entradaDatos" class="infoBox" style="display:none"><div><b>Número económico</b><span id="ee">—</span></div><div><b>Placas</b><span id="ep">—</span></div></div>
-<div id="entradaMsg" class="small">Al escanear se registrará únicamente la entrada.</div></section>
+<div id="entradaMsg" class="small">Captura el económico y escanea el código. La entrada se registra automáticamente.</div></section>
 
 <section class="card"><h2>📤 Salida de Yarda</h2>
 <div class="scan"><input id="xc" inputmode="numeric" maxlength="5" placeholder="Escanea el código de barras"><button class="gray" onclick="scan('xc')">📷</button></div>
 <div id="salidaDatos" class="infoBox" style="display:none"><div><b>Número económico</b><span id="xe">—</span></div><div><b>Placas</b><span id="xp">—</span></div></div>
-<div id="salidaMsg" class="small">Escanea una caja que esté EN YARDA.</div>
-<button id="salidaBtn" class="red full" style="display:none" onclick="salida()">✅ Confirmar salida</button></section>
+<div id="salidaMsg" class="small">Al escanear una caja EN YARDA, la salida se registra automáticamente.</div></section>
 
 <section class="card"><h2>📊 Estado de la Yarda</h2>
 <div class="stats"><div class="stat"><b id="cin">0</b><span>🟢 En yarda</span></div><div class="stat"><b id="cout">0</b><span>🔴 Salieron</span></div><div class="stat"><b id="ct">0</b><span>📦 Total</span></div></div>
@@ -62,8 +61,6 @@ button,.btn{border:0;border-radius:10px;padding:12px 14px;font:inherit;font-weig
 <div class="grid"><input id="tireCode" placeholder="Número de cautín"><input id="tireDesc" placeholder="Descripción / medida"></div>
 <button class="blue full" onclick="guardarTire()">Guardar llanta</button><div id="tireList" style="margin-top:10px"></div></section>
 </main></div>
-
-<div id="modal" class="modal" style="display:none"><div class="modalbox"><h2>Confirmar salida</h2><div id="mt"></div><div style="display:flex;gap:8px;margin-top:14px"><button class="gray" onclick="closeM()">Cancelar</button><button class="red" onclick="salida()">Confirmar salida</button></div></div></div>
 
 <div id="adminDrawer" class="adminDrawer"><div class="adminPanel">
 <div style="display:flex;justify-content:space-between;align-items:center"><h2>⚙️ Administración</h2><button class="gray" onclick="closeAdminMenu()">Cerrar</button></div>
@@ -147,28 +144,38 @@ function norm(el){
 function cargarDatosEntrada(){
   const c=document.getElementById('ec').value.trim(),d=data(),x=d[c];
   const ee=document.getElementById('ee'),ep=document.getElementById('ep');
+  const eco=document.getElementById('entradaEconomico').value.trim();
   if(valid(c)&&x){
-    ee.textContent=x.economico||'—';
+    ee.textContent=eco||x.economico||'—';
     ep.textContent=x.placas||'—';
     document.getElementById('entradaDatos').style.display='grid';
   }else{
-    ee.textContent='—';ep.textContent='—';
-    document.getElementById('entradaDatos').style.display='none';
+    ee.textContent=eco||'—';ep.textContent=x?.placas||'—';
+    if(eco||valid(c))document.getElementById('entradaDatos').style.display='grid';
+    else document.getElementById('entradaDatos').style.display='none';
   }
 }
+
 function entrada(){
-  const c=document.getElementById('ec').value.trim(),d=data(),x=d[c];
+  const c=document.getElementById('ec').value.trim();
   if(!valid(c))return alert('Código inválido. Usa del 00001 al 00100.');
-  if(!x)return alert('Código no registrado. Captúralo en Administración → Inventario de Yarda.');
+
+  const d=data();
+  let x=d[c];
+  if(!x)x={codigo:c, economico:'', placas:'', estado:'SALIÓ'};
+
   if(x.estado==='EN YARDA')return alert('Esa caja ya está EN YARDA.');
 
   const manualEco=document.getElementById('entradaEconomico').value.trim();
   if(manualEco)x.economico=manualEco;
-  if(!x.economico)return alert('Captura el número económico antes de registrar la entrada.');
+  if(!x.economico)return alert('Primero captura el número económico.');
 
+  x.codigo=c;
   x.estado='EN YARDA';
   x.entradaFechaHora=fecha();
-  saveD(d);addH('Entrada',x);
+  x.fecha=x.entradaFechaHora;
+  saveD(d);
+  addH('Entrada',x);
 
   document.getElementById('ec').value='';
   document.getElementById('entradaEconomico').value='';
@@ -176,28 +183,33 @@ function entrada(){
   render();
   alert('Entrada registrada correctamente.');
 }
+
 function buscarSalida(){
-  const c=document.getElementById('xc').value.trim(),d=data(),x=d[c];
+  const c=document.getElementById('xc').value.trim();
   if(!valid(c))return alert('Código inválido. Usa del 00001 al 00100.');
-  if(!x)return alert('Código no registrado.');
+
+  const d=data(),x=d[c];
+  if(!x)return alert('Código no registrado. Captúralo primero en una entrada.');
   if(x.estado!=='EN YARDA')return alert('La caja no está actualmente EN YARDA.');
 
   x.estado='SALIÓ';
   x.salidaFechaHora=fecha();
-  saveD(d);addH('Salida',x);
+  x.fecha=x.salidaFechaHora;
+  saveD(d);
+  addH('Salida',x);
 
+  document.getElementById('xe').textContent=x.economico||'—';
+  document.getElementById('xp').textContent=x.placas||'—';
+  document.getElementById('salidaDatos').style.display='grid';
   document.getElementById('xc').value='';
-  document.getElementById('salidaDatos').style.display='none';
-  document.getElementById('salidaBtn').style.display='none';
-  pend=null;
   render();
   alert('Salida registrada correctamente.');
 }
+
 function salida(){
-  // Se conserva para compatibilidad con registros antiguos/botones existentes.
   buscarSalida();
 }
-function closeM(){document.getElementById('modal').style.display='none'}
+function closeM(){}
 function addH(a,b){
   const h=hist();
   h.unshift({fechaHora:fecha(),usuario:U,accion:a,codigo:b.codigo,economico:b.economico,placas:b.placas});
@@ -376,10 +388,11 @@ function wipe(){
   }
 }
 async function scan(id){
-  if(!navigator.mediaDevices?.getUserMedia)return alert('Este navegador no permite usar la cámara. Puedes escribir el código manualmente.');
-  if(!('BarcodeDetector' in window))return alert('Este navegador no admite el lector de códigos integrado. Escribe el código manualmente.');
+  if(!navigator.mediaDevices?.getUserMedia)return alert('Este navegador no permite usar la cámara. Puedes escribir o escanear el código manualmente.');
+  if(!('BarcodeDetector' in window))return alert('Este navegador no admite el lector de códigos integrado. Puedes escribir o escanear el código manualmente.');
   try{
-    const fm=await BarcodeDetector.getSupportedFormats(),ok=fm.filter(x=>['code_128','code_39','ean_13','ean_8','upc_a','upc_e','itf'].includes(x));
+    const fm=await BarcodeDetector.getSupportedFormats();
+    const ok=fm.filter(x=>['code_128','code_39','ean_13','ean_8','upc_a','upc_e','itf'].includes(x));
     const det=new BarcodeDetector({formats:ok.length?ok:undefined});
     const st=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}}});
     const ov=document.createElement('div');ov.className='modal';
@@ -393,18 +406,13 @@ async function scan(id){
         const z=await det.detect(v);
         if(z.length){
           const n=z[0].rawValue.replace(/\D/g,'');
-          if(valid(pad(+n))){
-            document.getElementById(id).value=pad(+n);
-            if(id==='ec'){
-              cargarDatosEntrada();
-              active=false;st.getTracks().forEach(t=>t.stop());ov.remove();
-              entrada();
-              return;
-            }else{
-              active=false;st.getTracks().forEach(t=>t.stop());ov.remove();
-              buscarSalida();
-              return;
-            }
+          const codigo=pad(+n);
+          if(valid(codigo)){
+            document.getElementById(id).value=codigo;
+            active=false;st.getTracks().forEach(t=>t.stop());ov.remove();
+            if(id==='ec'){cargarDatosEntrada();entrada();}
+            else buscarSalida();
+            return;
           }
         }
       }catch(e){}
@@ -413,13 +421,26 @@ async function scan(id){
   }catch(e){alert('No se pudo abrir la cámara. Revisa el permiso del navegador o escribe el código manualmente.')}
 }
 
-document.getElementById('ec').addEventListener('input',()=>{
-  norm(document.getElementById('ec'));cargarDatosEntrada();
+function procesarCodigoEntrada(){
+  const el=document.getElementById('ec');
+  norm(el);
+  cargarDatosEntrada();
+  if(el.value.length===5)entrada();
+}
+
+function procesarCodigoSalida(){
+  const el=document.getElementById('xc');
+  norm(el);
+  if(el.value.length===5)buscarSalida();
+}
+
+document.getElementById('ec').addEventListener('input',procesarCodigoEntrada);
+document.getElementById('xc').addEventListener('input',procesarCodigoSalida);
+document.getElementById('entradaEconomico').addEventListener('input',e=>{
+  e.target.value=e.target.value.replace(/\D/g,'');
+  cargarDatosEntrada();
 });
-document.getElementById('xc').addEventListener('input',()=>norm(document.getElementById('xc')));
 document.getElementById('lp').addEventListener('keydown',e=>{if(e.key==='Enter')login()});
-document.getElementById('ec').addEventListener('keydown',e=>{if(e.key==='Enter')entrada()});
-document.getElementById('xc').addEventListener('keydown',e=>{if(e.key==='Enter')buscarSalida()});
 document.getElementById('adminPass').addEventListener('keydown',e=>{if(e.key==='Enter')unlockAdmin()});
 
 if(sessionStorage.getItem(SK)==='1')show();
