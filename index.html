@@ -35,9 +35,10 @@ button,.btn{border:0;border-radius:10px;padding:12px 14px;font:inherit;font-weig
 <main>
 <section class="card"><h2>📥 Entrada a Yarda</h2>
 <div class="scan"><input id="ec" inputmode="numeric" maxlength="5" placeholder="Escanea el código de barras"><button class="gray" onclick="scan('ec')">📷</button></div>
+<label>Número económico</label>
+<input id="entradaEconomico" inputmode="numeric" placeholder="Captura el número económico (opcional)">
 <div id="entradaDatos" class="infoBox" style="display:none"><div><b>Número económico</b><span id="ee">—</span></div><div><b>Placas</b><span id="ep">—</span></div></div>
-<div id="entradaMsg" class="small">Escanea y verifica los datos. Después confirma la entrada.</div>
-<button id="entradaBtn" class="green full" style="display:none" onclick="entrada()">✅ Confirmar entrada</button></section>
+<div id="entradaMsg" class="small">Al escanear se registrará únicamente la entrada.</div></section>
 
 <section class="card"><h2>📤 Salida de Yarda</h2>
 <div class="scan"><input id="xc" inputmode="numeric" maxlength="5" placeholder="Escanea el código de barras"><button class="gray" onclick="scan('xc')">📷</button></div>
@@ -47,6 +48,15 @@ button,.btn{border:0;border-radius:10px;padding:12px 14px;font:inherit;font-weig
 
 <section class="card"><h2>📊 Estado de la Yarda</h2>
 <div class="stats"><div class="stat"><b id="cin">0</b><span>🟢 En yarda</span></div><div class="stat"><b id="cout">0</b><span>🔴 Salieron</span></div><div class="stat"><b id="ct">0</b><span>📦 Total</span></div></div>
+</section>
+<section class="card">
+<h2>📋 Lista de Cajas</h2>
+<div class="filters">
+<button class="filter active" onclick="filtroListaCajas('all',this)">Todas</button>
+<button class="filter" onclick="filtroListaCajas('in',this)">🟢 En yarda</button>
+<button class="filter" onclick="filtroListaCajas('out',this)">🔴 Salieron</button>
+</div>
+<div id="listaCajasEstados" style="margin-top:10px"></div>
 </section>
 <section class="card"><h2>🛞 Registro de Cautín</h2>
 <div class="grid"><input id="tireCode" placeholder="Número de cautín"><input id="tireDesc" placeholder="Descripción / medida"></div>
@@ -141,23 +151,28 @@ function cargarDatosEntrada(){
     ee.textContent=x.economico||'—';
     ep.textContent=x.placas||'—';
     document.getElementById('entradaDatos').style.display='grid';
-    document.getElementById('entradaBtn').style.display='block';
   }else{
     ee.textContent='—';ep.textContent='—';
     document.getElementById('entradaDatos').style.display='none';
-    document.getElementById('entradaBtn').style.display='none';
   }
 }
 function entrada(){
   const c=document.getElementById('ec').value.trim(),d=data(),x=d[c];
   if(!valid(c))return alert('Código inválido. Usa del 00001 al 00100.');
-  if(!x||!x.economico||!x.placas)return alert('Código no registrado. Captúralo en Administración → Inventario de Yarda.');
+  if(!x)return alert('Código no registrado. Captúralo en Administración → Inventario de Yarda.');
   if(x.estado==='EN YARDA')return alert('Esa caja ya está EN YARDA.');
+
+  const manualEco=document.getElementById('entradaEconomico').value.trim();
+  if(manualEco)x.economico=manualEco;
+  if(!x.economico)return alert('Captura el número económico antes de registrar la entrada.');
+
   x.estado='EN YARDA';
+  x.entradaFechaHora=fecha();
   saveD(d);addH('Entrada',x);
+
   document.getElementById('ec').value='';
+  document.getElementById('entradaEconomico').value='';
   document.getElementById('entradaDatos').style.display='none';
-  document.getElementById('entradaBtn').style.display='none';
   render();
   alert('Entrada registrada correctamente.');
 }
@@ -166,24 +181,21 @@ function buscarSalida(){
   if(!valid(c))return alert('Código inválido. Usa del 00001 al 00100.');
   if(!x)return alert('Código no registrado.');
   if(x.estado!=='EN YARDA')return alert('La caja no está actualmente EN YARDA.');
-  document.getElementById('xe').textContent=x.economico;
-  document.getElementById('xp').textContent=x.placas;
-  document.getElementById('salidaDatos').style.display='grid';
-  document.getElementById('salidaBtn').style.display='block';
-  pend=c;
+
+  x.estado='SALIÓ';
+  x.salidaFechaHora=fecha();
+  saveD(d);addH('Salida',x);
+
+  document.getElementById('xc').value='';
+  document.getElementById('salidaDatos').style.display='none';
+  document.getElementById('salidaBtn').style.display='none';
+  pend=null;
+  render();
+  alert('Salida registrada correctamente.');
 }
 function salida(){
-  if(!pend)return;
-  const d=data();
-  if(!d[pend])return;
-  d[pend].estado='SALIÓ';
-  saveD(d);addH('Salida',d[pend]);
-  pend=null;
-  document.getElementById('xc').value='';
-  document.getElementById('salidaBtn').style.display='none';
-  document.getElementById('salidaDatos').style.display='none';
-  render();
-  alert('Salida confirmada correctamente.');
+  // Se conserva para compatibilidad con registros antiguos/botones existentes.
+  buscarSalida();
 }
 function closeM(){document.getElementById('modal').style.display='none'}
 function addH(a,b){
@@ -199,8 +211,33 @@ function renderInicioEstados(){
   document.getElementById('inicioEnYarda').innerHTML=en.length?en.map(fmt).join(''):'No hay cajas en yarda.';
   document.getElementById('inicioSalieron').innerHTML=sal.length?sal.map(fmt).join(''):'No hay cajas que hayan salido.';
 }
+
+let filtroLista='all';
+function filtroListaCajas(f,b){
+  filtroLista=f;
+  document.querySelectorAll('.filters .filter').forEach(x=>x.classList.remove('active'));
+  if(b)b.classList.add('active');
+  renderListaCajas();
+}
+function horaEscaneo(x){
+  const v=x.fecha||x.hora||x.timestamp||x.ts;
+  if(!v)return '—';
+  const d=new Date(v);
+  if(Number.isNaN(d.getTime()))return String(v);
+  return d.toLocaleString('es-MX',{hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:true});
+}
+function renderListaCajas(){
+  const d=data(), arr=Object.values(d).sort((a,b)=>a.codigo.localeCompare(b.codigo));
+  const lista=arr.filter(x=>filtroLista==='all'||(filtroLista==='in'&&x.estado==='EN YARDA')||(filtroLista==='out'&&x.estado==='SALIÓ'));
+  const el=document.getElementById('listaCajasEstados');
+  if(!el)return;
+  el.innerHTML=lista.length?'<div class="table"><table><thead><tr><th>Código</th><th>Número económico</th><th>Placas</th><th>Estado</th><th>Hora de escaneo</th></tr></thead><tbody>'+
+    lista.map(x=>'<tr><td>'+esc(x.codigo)+'</td><td>'+esc(x.economico||'—')+'</td><td>'+esc(x.placas||'—')+'</td><td><span class="badge '+(x.estado==='EN YARDA'?'in':'out')+'">'+(x.estado==='EN YARDA'?'🟢 EN YARDA':'🔴 SALIÓ')+'</span></td><td>'+esc(horaEscaneo(x))+'</td></tr>').join('')+
+    '</tbody></table></div>':'<div class="empty">No hay cajas en esta lista.</div>';
+}
 function render(){
   renderInv();
+  renderListaCajas();
   renderHist();
   renderTires();
   renderAdminTires();
@@ -358,8 +395,16 @@ async function scan(id){
           const n=z[0].rawValue.replace(/\D/g,'');
           if(valid(pad(+n))){
             document.getElementById(id).value=pad(+n);
-            if(id==='ec')cargarDatosEntrada();else buscarSalida();
-            active=false;st.getTracks().forEach(t=>t.stop());ov.remove();return;
+            if(id==='ec'){
+              cargarDatosEntrada();
+              active=false;st.getTracks().forEach(t=>t.stop());ov.remove();
+              entrada();
+              return;
+            }else{
+              active=false;st.getTracks().forEach(t=>t.stop());ov.remove();
+              buscarSalida();
+              return;
+            }
           }
         }
       }catch(e){}
@@ -373,6 +418,7 @@ document.getElementById('ec').addEventListener('input',()=>{
 });
 document.getElementById('xc').addEventListener('input',()=>norm(document.getElementById('xc')));
 document.getElementById('lp').addEventListener('keydown',e=>{if(e.key==='Enter')login()});
+document.getElementById('ec').addEventListener('keydown',e=>{if(e.key==='Enter')entrada()});
 document.getElementById('xc').addEventListener('keydown',e=>{if(e.key==='Enter')buscarSalida()});
 document.getElementById('adminPass').addEventListener('keydown',e=>{if(e.key==='Enter')unlockAdmin()});
 
